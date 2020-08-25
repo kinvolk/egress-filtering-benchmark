@@ -1,2 +1,4 @@
 ipnets_generator_example/example
 benchmark/benchmark
+.*.swp
+result-*.json

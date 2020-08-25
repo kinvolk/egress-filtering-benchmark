@@ -3,9 +3,9 @@ package bpf
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
-	"net"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -46,7 +46,12 @@ func (b *bpf) SetUp(nets []net.IPNet, iface string) error {
 	cmd2 := exec.Command("tc", "filter", "add", "dev", iface,
 		"egress", "bpf", "da", "obj", bpfCodePath, "sec", "filter_egress")
 	if out, err := cmd2.CombinedOutput(); err != nil {
-		return fmt.Errorf("Error adding egress filter %w: %s", err, out)
+		// Workaround for https://github.com/flatcar-linux/Flatcar/issues/172
+		cmd3 := exec.Command("sh", "-c",
+			fmt.Sprintf("docker run --rm --net=host --privileged -v /:/host ubuntu sh -c \"apt-get update ; apt-get install -y iproute2 ; tc filter add dev %s egress bpf da obj /host/%s sec filter_egress\"", iface, bpfCodePath))
+		if out2, err2 := cmd3.CombinedOutput(); err2 != nil {
+			return fmt.Errorf("Error adding egress filter %w: %s\nAdditional error with docker:\n%s: %s", err, out, err2, out2)
+		}
 	}
 
 	if err := updateMap(nets); err != nil {
