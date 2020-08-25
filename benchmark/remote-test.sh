@@ -41,13 +41,12 @@ ssh ${username}@${server} docker run --name iperfserver -d --net=host networksta
 sleep 2
 ssh ${username}@${server} docker ps
 
-
-COUNT_LIST="10 100 1000 10000 100000"
+COUNT_LIST="10 100 1000 10000 100000 1000000"
 
 for COUNT in $COUNT_LIST; do
   for FILTER in none bpf iptables ipset ; do
     ssh ${username}@${client} "docker rm --force iperfclient || true"
-    ssh ${username}@${client} "export BENCHMARK_COMMAND=\"docker run --name iperfclient --net=host networkstatic/iperf3 -c $server --json\" ; sudo -E ./benchmark -count $COUNT -iface bond0 -seed 1 -ipnets 24:0.7,16:0.1 -filter $FILTER" > result-$FILTER-$COUNT.json
+    ssh ${username}@${client} "export BENCHMARK_COMMAND=\"docker run --name iperfclient --net=host networkstatic/iperf3 -c $server --json\" ; sudo -E ./benchmark -count $COUNT -iface bond0 -seed 1 -ipnets 24:0.1,16:0.01 -filter $FILTER" > result-$FILTER-$COUNT.json
     cat result-$FILTER-$COUNT.json | jq '.end.sum_sent.bits_per_second' || true
   done
 done
