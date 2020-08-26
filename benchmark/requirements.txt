@@ -1,0 +1,4 @@
+numpy
+pingparsing
+pandas
+matplotlib
