@@ -13,7 +13,7 @@
    __attribute__((section(NAME), used))
 #endif
 
-#define MAP_SIZE 100000
+#define MAP_SIZE 2000000
 
 struct bpf_elf_map lpm_filter __section("maps") = {
     .type         = BPF_MAP_TYPE_LPM_TRIE,

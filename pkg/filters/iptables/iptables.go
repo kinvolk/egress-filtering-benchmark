@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ruleFormat = "-A OUTPUT -d %s -o %s -j DROP\n"
+	ruleFormat = "-A OUTPUT -d %s -o %s -m comment --comment \"benchmark\" -j DROP\n"
 	rulesPath  = "/tmp/iptables-save.txt"
 )
 
@@ -75,7 +75,7 @@ func iptablesRestore(rules []byte, noflush bool) error {
 	}()
 
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("Error adding iptables rules %w: %s", err, out)
+		return fmt.Errorf("Error adding iptables rules %w: %s\n%s", err, out, string(rules))
 	}
 
 	return nil
