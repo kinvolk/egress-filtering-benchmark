@@ -51,7 +51,7 @@ func main() {
 		seed = time.Now().UnixNano()
 	}
 
-	ipnetsReq := ipnetsgenerator.ParseIPNetsParam(countParam, ipnetsParam)
+	ipnetsReq := ipnetsgenerator.ParseIPNetsParam(countParam - 1, ipnetsParam)
 	nets := ipnetsgenerator.GenerateIPNets(ipnetsReq, seed)
 
 	_, pingIP, err := net.ParseCIDR(testIP+"/32")
@@ -87,6 +87,13 @@ func main() {
 		}
 
 		var err error
+
+		// Check that the test ip is reachable before applying the filter
+		if err := checkPingSuccess(testIP); err != nil {
+			fmt.Printf("%s\n", err)
+			return
+		}
+
 		setupTime, err = filter.SetUp(nets, iface)
 		if err != nil {
 			fmt.Printf("error setting up filter %s", err)
