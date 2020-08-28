@@ -31,7 +31,7 @@ var (
 )
 
 type filter interface {
-	SetUp(nets []net.IPNet, iface string) error
+	SetUp(nets []net.IPNet, iface string) (int64, error)
 	CleanUp()
 }
 
@@ -77,6 +77,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	var setupTime int64
+
 	if filter != nil {
 		// Check that the test ip is reachable before applying the filter
 		if err := checkPingSuccess(testIP); err != nil {
@@ -84,7 +86,9 @@ func main() {
 			return
 		}
 
-		if err := filter.SetUp(nets, iface); err != nil {
+		var err error
+		setupTime, err = filter.SetUp(nets, iface)
+		if err != nil {
 			fmt.Printf("error setting up filter %s", err)
 			return
 		}
@@ -97,8 +101,9 @@ func main() {
 
 		defer filter.CleanUp()
 	}
-
-	if os.Getenv("BENCHMARK_COMMAND") != "" {
+	if os.Getenv("BENCHMARK_COMMAND") == "MEASURE_SETUP_TIME" {
+		fmt.Println(setupTime)
+	} else if os.Getenv("BENCHMARK_COMMAND") != "" {
 		cmd1 := exec.Command("sh", "-c", os.Getenv("BENCHMARK_COMMAND"))
 		stdoutStderr, err := cmd1.CombinedOutput()
 		if err != nil {

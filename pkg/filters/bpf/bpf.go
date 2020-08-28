@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -25,14 +26,14 @@ func New() *bpf {
 }
 
 // SetUp installs the filter in iface
-func (b *bpf) SetUp(nets []net.IPNet, iface string) error {
+func (b *bpf) SetUp(nets []net.IPNet, iface string) (int64, error) {
 	asset, err := Asset("datapath/bpf.o")
 	if err != nil {
-		return err
+		return 0, err
 	}
 	err = ioutil.WriteFile(bpfCodePath, asset, 0644)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer os.Remove(bpfCodePath)
 
@@ -40,7 +41,7 @@ func (b *bpf) SetUp(nets []net.IPNet, iface string) error {
 	b.CleanUp()
 	cmd1 := exec.Command("tc", "qdisc", "add", "dev", iface, "clsact")
 	if out, err := cmd1.CombinedOutput(); err != nil {
-		return fmt.Errorf("Error adding clsact %w: %s", err, out)
+		return 0, fmt.Errorf("Error adding clsact %w: %s", err, out)
 	}
 
 	cmd2 := exec.Command("tc", "filter", "add", "dev", iface,
@@ -50,15 +51,17 @@ func (b *bpf) SetUp(nets []net.IPNet, iface string) error {
 		cmd3 := exec.Command("sh", "-c",
 			fmt.Sprintf("docker run --rm --net=host --privileged -v /:/host ubuntu sh -c \"apt-get update ; apt-get install -y iproute2 ; tc filter add dev %s egress bpf da obj /host/%s sec filter_egress\"", iface, bpfCodePath))
 		if out2, err2 := cmd3.CombinedOutput(); err2 != nil {
-			return fmt.Errorf("Error adding egress filter %w: %s\nAdditional error with docker:\n%s: %s", err, out, err2, out2)
+			return 0, fmt.Errorf("Error adding egress filter %w: %s\nAdditional error with docker:\n%s: %s", err, out, err2, out2)
 		}
 	}
 
+	start := time.Now()
 	if err := updateMap(nets); err != nil {
-		return err
+		return 0, err
 	}
+	elapsed := time.Since(start)
 
-	return nil
+	return elapsed.Nanoseconds(), nil
 }
 
 // CleanUp removes the filter

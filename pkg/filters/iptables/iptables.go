@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os/exec"
+	"time"
 )
 
 const (
@@ -23,30 +24,37 @@ func New() *iptablesFilter {
 }
 
 // SetUp installs the filter in iface
-func (f *iptablesFilter) SetUp(nets []net.IPNet, iface string) error {
+func (f *iptablesFilter) SetUp(nets []net.IPNet, iface string) (int64, error) {
 	f.iface = iface
 	f.nets = nets
 
 	rulesToSave, err := iptablesSave()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := ioutil.WriteFile(rulesPath, rulesToSave, 0644); err != nil {
-		return err
+		return 0, err
 	}
 
+	start := time.Now()
 	var b bytes.Buffer
 	fmt.Fprintln(&b, "*filter")
 	for _, n := range nets {
 		_, err := fmt.Fprintf(&b, ruleFormat, n.String(), iface)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 	fmt.Fprintln(&b, "COMMIT")
 
 	// add the new rules without removing the existing ones
-	return iptablesRestore(b.Bytes(), true)
+	if err := iptablesRestore(b.Bytes(), true); err != nil {
+		return 0, err
+	}
+
+	elapsed := time.Since(start)
+
+	return elapsed.Nanoseconds(), nil
 }
 
 // CleanUp removes the filter
