@@ -117,3 +117,28 @@ p.set_ylabel("Latency [ms]")
 fig = plt.gcf()
 fig.set_size_inches(12, 5)
 plt.savefig("latency.svg")
+
+########### plot setup time ####################
+(avg, err) = get_plotable_tables(read_csv("setup.csv"))
+plt.figure()
+
+df = pd.DataFrame(avg, columns=filters)
+p = df.plot.bar(yerr=err, width=0.8)
+p.grid(axis="y", linestyle="dashed")
+p.set_axisbelow(True)
+
+# Shrink current axis by 10%
+box = p.get_position()
+p.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+
+p.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+p.set_title("Rules Setup Time")
+p.set_xticklabels(number_rules, rotation="horizontal")
+p.set_xlabel("Number of rules")
+p.set_ylabel("Setup Time [us]")
+p.set_yscale("log")
+
+fig = plt.gcf()
+fig.set_size_inches(12, 5)
+plt.savefig("setup.svg")
+#plt.show()

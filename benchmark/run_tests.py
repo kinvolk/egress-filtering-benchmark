@@ -78,7 +78,7 @@ def start_iperf_server():
     time.sleep(2)
 
 def copy_benchmark_to_client():
-    cmd = "scp benchmark ${}@${}:".format(args.username, args.client)
+    cmd = "scp benchmark {}@{}:".format(args.username, args.client)
     subprocess.run(cmd, stdout=subprocess.PIPE, shell=True)
 
 def run_in_client(cmd):
@@ -107,8 +107,9 @@ def write_csv(filename, data):
 data_throughput = {}
 data_cpu = {}
 data_ping = {}
+data_setup = {}
 
-#copy_benchmark_to_client()
+copy_benchmark_to_client()
 start_iperf_server()
 
 print("%\tfilter\tnrules\titeration\tthroughput\tcpu\tping\t")
@@ -121,16 +122,17 @@ for (filter_index, filter) in enumerate(filters):
     data_throughput[filter] = {}
     data_cpu[filter] = {}
     data_ping[filter] = {}
+    data_setup[filter] = {}
 
     for (rules_index, n) in enumerate(number_rules):
         data_throughput[filter][n] = []
         data_cpu[filter][n] = []
         data_ping[filter][n] = []
+        data_setup[filter][n] = []
 
         for i in range(iterations):
             percentage = 100.0*float(number_of_tests_executed)/number_of_tests
             print("{:1.0f}\t{}\t{}\t{}\t".format(percentage, filter, n, i), end="")
-
             out = run_iperf_test(filter, n, args.mode)
             if not out:
                 print("Testing for {}:{}:{} failed".format(filter, n, i))
@@ -142,13 +144,20 @@ for (filter_index, filter) in enumerate(filters):
                 continue
             out_ping = 1000*out_ping
 
-            print("{}\t{}\t{}".format(out[0], out[1], out_ping))
+            setup = run_test(filter, n, "MEASURE_SETUP_TIME")
+            if not setup:
+                print("Testing for {}:{}:{} failed".format(filter, n, i))
+                continue
+            setup = int(setup)/1000
+            print("{}\t{}\t{}\t{}".format(out[0], out[1], out_ping, setup))
             number_of_tests_executed += 1
 
             data_throughput[filter][n].append(out[0])
             data_cpu[filter][n].append(out[1])
             data_ping[filter][n].append(out_ping)
+            data_setup[filter][n].append(setup)
 
 write_csv("throughput.csv", data_throughput)
 write_csv("cpu.csv", data_cpu)
 write_csv("latency.csv", data_ping)
+write_csv("setup.csv", data_setup)

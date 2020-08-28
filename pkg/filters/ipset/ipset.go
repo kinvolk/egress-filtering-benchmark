@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"time"
 )
 
 const (
@@ -23,13 +24,16 @@ func New() *ipsetFilter {
 }
 
 // SetUp installs the filter in iface
-func (b *ipsetFilter) SetUp(nets []net.IPNet, iface string) error {
+func (b *ipsetFilter) SetUp(nets []net.IPNet, iface string) (int64, error) {
 	if len(nets) > setSize {
-		return fmt.Errorf("Imposible to add %d rules. The maximum allowed is %d",
+		return 0, fmt.Errorf("Imposible to add %d rules. The maximum allowed is %d",
 			len(nets), setSize)
 	}
 
 	b.iface = iface
+
+	start := time.Now()
+
 	// create and fill ipset
 	var buf bytes.Buffer
 	var err error
@@ -37,24 +41,26 @@ func (b *ipsetFilter) SetUp(nets []net.IPNet, iface string) error {
 	for _, n := range nets {
 		_, err := fmt.Fprintf(&buf, ruleFormat, setName, n.String())
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 	fmt.Fprintln(&buf, "quit")
 
 	err = execIpSet(buf.Bytes())
 	if err != nil {
-		return err
+		return 0, err
 	}
+
+	elapsed := time.Since(start)
 
 	// associate iptable to it
 	err = execIpTables("-A", "OUTPUT", "-o", iface, "-m", "set", "--match-set",
 		setName, "dst", "-j", "DROP", "-m", "comment", "--comment", "benchmark")
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return elapsed.Nanoseconds(), nil
 }
 
 func execIpTables(args ...string) error {
