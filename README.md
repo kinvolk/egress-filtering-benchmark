@@ -32,3 +32,7 @@ $ python plot_data.py
 ```
 
 This will create some svg files with the graphs.
+
+## Credits
+
+The BPF filter is inspired by the [tc-bpf](https://man7.org/linux/man-pages/man8/tc-bpf.8.html) man page and the [Cilium documentation](https://docs.cilium.io/en/latest/bpf/#tc-traffic-control).
