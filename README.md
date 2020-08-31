@@ -1,1 +1,1 @@
-# k8s-egress-filtering-benchmark
+# egress-filtering-benchmark
