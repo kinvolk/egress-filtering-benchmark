@@ -47,98 +47,65 @@ def get_plotable_tables(data):
             err[filter_index][rules_index] = t_err = np.std(values, ddof=1)/np.sqrt(len(values))
     return (avg, err)
 
-########### plot throuhgput ####################
-(avg, err) = get_plotable_tables(read_csv("throughput.csv"))
-plt.figure()
+bar_color = ("#09BAC8", "#FFF200", "#F72E5C", "#17B838")
+ecolor = ""
+grid_color = "#B0B0B0"
+axis_heading = "#585858"
+label_color = "#777777"
 
-df = pd.DataFrame(avg, columns=filters)
-p = df.plot.bar(yerr=err, width=0.8)
-p.grid(axis="y", linestyle="dashed")
-p.set_axisbelow(True)
+def plot_data(
+    datafile,
+    title,
+    xlabel,
+    ylabel,
+    file,
+    log=False,
+):
+    (avg, err) = get_plotable_tables(read_csv(datafile))
+    plt.figure()
 
-# Shrink current axis by 10%
-box = p.get_position()
-p.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+    df = pd.DataFrame(avg, columns=filters)
+    p = df.plot.bar(yerr=err, width=0.8, color=bar_color)
+    p.grid(axis="y", linestyle="dashed", color=grid_color)
+    p.set_axisbelow(True)
 
-p.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-p.set_title("Throughput")
-p.set_xticklabels(number_rules, rotation="horizontal")
-p.set_xlabel("Number of rules")
-p.set_ylabel("Throughput [Gbps]")
-#p.set_yscale("log")
+    p.xaxis.label.set_color(axis_heading)
+    p.yaxis.label.set_color(axis_heading)
+    p.tick_params(axis='x', colors=label_color)
+    p.tick_params(axis='y', colors=label_color)
+    p.title.set_color(axis_heading)
+    p.spines['bottom'].set_color(label_color)
+    p.spines['left'].set_color(label_color)
+    p.spines['top'].set_color((0,0,0,0))
+    p.spines['right'].set_color((0,0,0,0))
 
-fig = plt.gcf()
-fig.set_size_inches(12, 5)
-plt.savefig("throughput.svg")
-#plt.show()
+    # Shrink current axis by 10%
+    box = p.get_position()
+    p.set_position([box.x0, box.y0, box.width * 0.9, box.height])
 
-########### plot cpu ####################
-(avg, err) = get_plotable_tables(read_csv("cpu.csv"))
-plt.figure()
-df = pd.DataFrame(avg, columns=filters)
-p = df.plot.bar(yerr=err, width=0.8)
-p.grid(axis="y", linestyle="dashed")
-p.set_axisbelow(True)
+    leg = p.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+    for text in leg.get_texts():
+        text.set_color(label_color)
 
-# Shrink current axis by 10%
-box = p.get_position()
-p.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+    p.set_title(title)
+    p.set_xticklabels(number_rules, rotation="horizontal")
+    p.set_xlabel(xlabel)
+    p.set_ylabel(ylabel)
+    if log:
+        p.set_yscale("log")
 
-p.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-p.set_title("CPU Usage")
-p.set_xticklabels(number_rules, rotation="horizontal")
-p.set_xlabel("Number of rules")
-p.set_ylabel("CPU Usage [Percent]")
-#p.set_yscale("log")
+    fig = plt.gcf()
+    fig.set_size_inches(12, 5)
+    plt.savefig(file)
 
-fig = plt.gcf()
-fig.set_size_inches(12, 5)
-plt.savefig("cpu.svg")
+plot_data("throughput.csv", "Throughput", "Number of rules",
+    "Throughput [Gbps]", "throughput.svg")
 
-########### plot latency #####################
-(avg, err) = get_plotable_tables(read_csv("latency.csv"))
-plt.figure()
-df = pd.DataFrame(avg, columns=filters)
-p = df.plot.bar(yerr=err, width=0.8)
-p.grid(axis="y", linestyle="dashed")
-p.set_axisbelow(True)
+plot_data("cpu.csv", "CPU Usage", "Number of rules",
+    "CPU Usage [Percent]", "cpu.svg")
 
-# Shrink current axis by 10%
-box = p.get_position()
-p.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+plot_data("latency.csv", "Latency", "Number of rules",
+    "Latency [ms]", "latency.svg", log=True)
 
-p.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-p.set_title("Latency")
-p.set_xticklabels(number_rules, rotation="horizontal")
-p.set_xlabel("Number of rules")
-p.set_ylabel("Latency [ms]")
-#p.set_yscale("log")
-
-fig = plt.gcf()
-fig.set_size_inches(12, 5)
-plt.savefig("latency.svg")
-
-########### plot setup time ####################
-(avg, err) = get_plotable_tables(read_csv("setup.csv"))
-plt.figure()
-
-df = pd.DataFrame(avg, columns=filters)
-p = df.plot.bar(yerr=err, width=0.8)
-p.grid(axis="y", linestyle="dashed")
-p.set_axisbelow(True)
-
-# Shrink current axis by 10%
-box = p.get_position()
-p.set_position([box.x0, box.y0, box.width * 0.9, box.height])
-
-p.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-p.set_title("Rules Setup Time")
-p.set_xticklabels(number_rules, rotation="horizontal")
-p.set_xlabel("Number of rules")
-p.set_ylabel("Setup Time [us]")
-p.set_yscale("log")
-
-fig = plt.gcf()
-fig.set_size_inches(12, 5)
-plt.savefig("setup.svg")
-#plt.show()
+plot_data("setup.csv", "Rules Setup Time", "Number of rules",
+    "Setup Time [us]", "setup.svg", log=True)
