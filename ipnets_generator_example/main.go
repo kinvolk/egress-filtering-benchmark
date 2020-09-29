@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/ipnetsgenerator"

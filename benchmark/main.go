@@ -51,10 +51,10 @@ func main() {
 		seed = time.Now().UnixNano()
 	}
 
-	ipnetsReq := ipnetsgenerator.ParseIPNetsParam(countParam - 1, ipnetsParam)
+	ipnetsReq := ipnetsgenerator.ParseIPNetsParam(countParam-1, ipnetsParam)
 	nets := ipnetsgenerator.GenerateIPNets(ipnetsReq, seed)
 
-	_, pingIP, err := net.ParseCIDR(testIP+"/32")
+	_, pingIP, err := net.ParseCIDR(testIP + "/32")
 	if err != nil {
 		fmt.Printf("error parsing testIP: %s\n", err)
 		return
