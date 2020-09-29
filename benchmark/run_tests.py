@@ -20,6 +20,10 @@ from parameters import  (
     ping_count,
 )
 
+from k8s import benchmark_pod_tmpl
+
+from string import Template
+
 parser = argparse.ArgumentParser("Test egress performance")
 parser.add_argument("--username")
 parser.add_argument("--client")
@@ -27,25 +31,78 @@ parser.add_argument("--server")
 parser.add_argument("--mode")
 args = parser.parse_args()
 
+def get_pod(pod_name):
+   cmd = "kubectl get pod -n default {} -o jsonpath='{{.metadata.name}}'".format(pod_name)
+   result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+   return result.stdout.decode("utf-8")
+
+
+def delete_benchmark_pod(pod_name):
+    exists = get_pod(pod_name)
+    if exists == "":
+        return None
+
+    cmd = "kubectl delete pod -n default {}".format(pod_name)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True)
+    return result.stdout.decode("utf-8")
+
+def pod_status(pod_name):
+    cmd = "kubectl get pod {} -o jsonpath='{{.status.phase}}'".format(pod_name)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
+    return result.stdout.decode("utf-8")
+
+def get_output(pod_name):
+    phase = pod_status(pod_name)
+    for x in range(1,100):
+        if phase != "Succeeded":
+            time.sleep(3)
+            phase = pod_status(pod_name)
+
+        if phase == "Succeeded":
+            cmd = "kubectl logs -n default {}".format(pod_name)
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True)
+            return result.stdout.decode("utf-8")
+
+    return None
+
+def run_on_k8s(filter,nrules,cmd):
+    benchmark_cmd = Template(benchmark_pod_tmpl).substitute(count=nrules, iface=iface, seed=seed, ipnets=ipnets, filter=filter,cmd=cmd)
+    cmd = '''
+kubectl apply -f - << EOF
+{}
+EOF'''.format(benchmark_cmd)
+
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True)
+    return result.stdout.decode("utf-8")
+
+
 benchmark_cmd_format = "sudo -E ./benchmark -count {count} -iface {iface} -seed {seed} -ipnets {ipnets} -filter {filter}"
 def run_test(filter, nrules, cmd):
     benchmark_cmd = benchmark_cmd_format.format(count=nrules, iface=iface, seed=seed, ipnets=ipnets, filter=filter)
     cmd = "export BENCHMARK_COMMAND='{}' ; {}".format(cmd, benchmark_cmd)
     return run_in_client(cmd)
 
+iperf_cmd_format_for_k8s = "iperf3 -c {server} {mode_flags} -O 2 -t 10 -A 2 -J"
 iperf_cmd_format = "docker run --name iperfclient --net=host networkstatic/iperf3 -c {server} {mode_flags} -O 2 -t 10 -A 2 -J"
 def run_iperf_test(filter, nrules, mode):
     flags = ""
     if mode == "udp":
         flags = "-u -l 1470 -b {}".format(bandwidth)
 
-    iperf_cmd = iperf_cmd_format.format(server=args.server, mode_flags=flags)
-
-    run_in_client("docker rm --force iperfclient || true")
-    out = run_test(filter, nrules, iperf_cmd)
-    if not out:
-        return None
-
+    if filter == "calico" or filter == "cilium":
+        iperf_cmd = iperf_cmd_format_for_k8s.format(server=args.server, mode_flags=flags)
+        out = run_on_k8s(filter, nrules, iperf_cmd)
+        if not out:
+            return None
+        out = get_output("egress-benchmark")
+        if not out:
+            return None
+    else:
+        iperf_cmd = iperf_cmd_format.format(server=args.server, mode_flags=flags)
+        run_in_client("docker rm --force iperfclient || true")
+        out = run_test(filter, nrules, iperf_cmd)
+        if not out:
+            return None
     #print("out is: " + out)
     index = out.find("{")
     if index == -1:
@@ -65,9 +122,19 @@ def run_iperf_test(filter, nrules, mode):
 ping_cmd_format = "ping -i {interval} -c {count} {dest}"
 def run_ping_test(filter, nrules, mode):
     cmd = ping_cmd_format.format(interval=ping_interval, count=ping_count, dest=args.server)
-    result = run_test(filter, nrules, cmd)
-    if not result:
-        return None
+
+    if filter == "calico" or filter == "cilium":
+        result = run_on_k8s(filter, nrules, cmd)
+        if not result:
+            return None
+        result = get_output("egress-benchmark")
+        if not result:
+            return None
+    else:
+        result = run_test(filter, nrules, cmd)
+        #print("result is ---" + result)
+        if not result:
+            return None
     parser = pingparsing.PingParsing()
     stats = parser.parse(result)
     return stats.rtt_avg
@@ -133,20 +200,30 @@ for (filter_index, filter) in enumerate(filters):
         for i in range(iterations):
             percentage = 100.0*float(number_of_tests_executed)/number_of_tests
             print("{:1.0f}\t{}\t{}\t{}\t".format(percentage, filter, n, i), end="")
+
+            if filter == "calico" or filter == "cilium":
+                delete_benchmark_pod("egress-benchmark")
             out = run_iperf_test(filter, n, args.mode)
             if not out:
-                print("Testing for {}:{}:{} failed".format(filter, n, i))
+                print("Testing iperf for {}:{}:{} failed".format(filter, n, i))
                 continue
 
+            if filter == "calico" or filter == "cilium":
+                delete_benchmark_pod("egress-benchmark")
             out_ping = run_ping_test(filter, n, args.mode)
             if not out_ping:
-                print("Testing for {}:{}:{} failed".format(filter, n, i))
+                print("Testing ping for {}:{}:{} failed".format(filter, n, i))
                 continue
             out_ping = 1000*out_ping
 
-            setup = run_test(filter, n, "MEASURE_SETUP_TIME")
+            if filter == "calico" or filter == "cilium":
+                delete_benchmark_pod("egress-benchmark")
+                setup = run_on_k8s(filter, n, "MEASURE_SETUP_TIME")
+                setup = get_output("egress-benchmark")
+            else:
+                setup = run_test(filter, n, "MEASURE_SETUP_TIME")
             if not setup:
-                print("Testing for {}:{}:{} failed".format(filter, n, i))
+                print("Testing setup for {}:{}:{} failed".format(filter, n, i))
                 continue
             setup = int(setup)/1000
             print("{}\t{}\t{}\t{}".format(out[0], out[1], out_ping, setup))
