@@ -3,7 +3,7 @@
 // datapath/bpf.o
 // DO NOT EDIT!
 
-package bpf
+package tcbpf
 
 import (
 	"bytes"
