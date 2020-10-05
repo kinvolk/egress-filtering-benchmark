@@ -10,6 +10,7 @@ import (
 	"net"
 
 	tcbpf "github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/tc-bpf"
+	cgroupbpf "github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/cgroup-bpf"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/calico"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/ipset"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/iptables"
@@ -41,7 +42,7 @@ func init() {
 	flag.IntVar(&countParam, "count", 0, "Number of entries to generate")
 	flag.StringVar(&ipnetsParam, "ipnets", "", "List of ipnets and their weigth to generate (ex. 24:0.7,16:0.1)")
 	flag.Int64Var(&seed, "seed", 0, "Seed to use for the random generator")
-	flag.StringVar(&filterType, "filter", "", "Type of filter to use (tc-bpf, iptables, ipset)")
+	flag.StringVar(&filterType, "filter", "", "Type of filter to use (tc-bpf, cgroup-bpf, iptables, ipset)")
 	flag.StringVar(&testIP, "test-ip", testIPDefault, "IP to perform a ping to test if filters were correctly applied")
 }
 
@@ -69,6 +70,8 @@ func main() {
 		filter = nil
 	case "tc-bpf":
 		filter = tcbpf.New()
+	case "cgroup-bpf":
+		filter = cgroupbpf.New()
 	case "iptables":
 		filter = iptables.New()
 	case "ipset":

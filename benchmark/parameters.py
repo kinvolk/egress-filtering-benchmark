@@ -1,7 +1,7 @@
 # change these values to setup the test
 
 # List of filters to use. Supported values are none, bpf, iptables and ipset.
-filters = ['none','tc-bpf','iptables','ipset','calico']
+filters = ['none','tc-bpf','cgroup-bpf','iptables','ipset','calico']
 # Number of rules to test
 number_rules = ['10','100','1000','10000','100000','1000000']
 # Number of iterations to run each test.
