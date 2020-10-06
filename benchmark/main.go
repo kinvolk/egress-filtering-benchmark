@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -91,15 +92,12 @@ func main() {
 			fmt.Printf("%s\n", err)
 			return
 		}
-
-		var err error
-
-		// Check that the test ip is reachable before applying the filter
-		if err := checkPingSuccess(testIP); err != nil {
+		if err := checkDNSSuccess(testIP); err != nil {
 			fmt.Printf("%s\n", err)
 			return
 		}
 
+		var err error
 		setupTime, err = filter.SetUp(nets, iface)
 		if err != nil {
 			fmt.Printf("error setting up filter %s", err)
@@ -108,6 +106,10 @@ func main() {
 
 		// Check that the test ip is not reachable after applying the filter
 		if err := checkPingFail(testIP); err != nil {
+			fmt.Printf("%s\n", err)
+			return
+		}
+		if err := checkDNSFail(testIP); err != nil {
 			fmt.Printf("%s\n", err)
 			return
 		}
@@ -169,5 +171,36 @@ func checkPingFail(ip string) error {
 		return fmt.Errorf("ping to %q should have fail", ip)
 	}
 
+	return nil
+}
+
+func checkDNSSuccess(ip string) error {
+	r := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{
+				Timeout: time.Second * time.Duration(5),
+			}
+			return d.DialContext(ctx, "udp", ip+":53")
+		},
+	}
+	_, err := r.LookupHost(context.Background(), "www.google.com")
+	return err
+}
+
+func checkDNSFail(ip string) error {
+	r := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{
+				Timeout: time.Second * time.Duration(5),
+			}
+			return d.DialContext(ctx, "udp", ip+":53")
+		},
+	}
+	_, err := r.LookupHost(context.Background(), "www.google.com")
+	if err == nil {
+	   return fmt.Errorf("DNS request to %s:53 should have failed", ip)
+	}
 	return nil
 }
