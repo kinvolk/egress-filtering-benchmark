@@ -105,7 +105,7 @@ plot_data("cpu.csv", "CPU Usage", "Number of rules",
     "CPU Usage [Percent]", "cpu.svg")
 
 plot_data("latency.csv", "Latency", "Number of rules",
-    "Latency [ms]", "latency.svg", log=True)
+    "Latency [us]", "latency.svg", log=True)
 
 plot_data("setup.csv", "Rules Setup Time", "Number of rules",
     "Setup Time [us]", "setup.svg", log=True)
