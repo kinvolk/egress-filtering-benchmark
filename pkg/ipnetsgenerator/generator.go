@@ -3,8 +3,8 @@ package ipnetsgenerator
 import (
 	"math/rand"
 	"net"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 type IPNetRequest struct {
@@ -29,7 +29,7 @@ func ParseIPNetsParam(count int, ipnets string) []IPNetRequest {
 
 	for _, req := range reqs {
 		pieces := strings.Split(req, ":")
-		if len(pieces)!= 2 {
+		if len(pieces) != 2 {
 			continue
 		}
 
@@ -42,7 +42,7 @@ func ParseIPNetsParam(count int, ipnets string) []IPNetRequest {
 			continue
 		}
 
-		c := int(weight*float64(count))
+		c := int(weight * float64(count))
 		processedCount += c
 
 		ipnetReq = append(ipnetReq, IPNetRequest{c, length})

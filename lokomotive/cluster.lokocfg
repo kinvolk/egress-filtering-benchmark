@@ -1,0 +1,41 @@
+variable "packet_project_id" {}
+variable "ssh_public_keys" {}
+variable "cluster_name" {}
+variable "dns_zone" {}
+variable "controller_type" {}
+variable "worker_type" {}
+
+backend "local" {
+  path = file("./terraform.state")
+}
+
+cluster "packet" {
+  controller_count=1
+  management_cidrs = ["0.0.0.0/0"]
+  node_private_cidr = "10.0.0.0/8"
+  ssh_pubkeys = var.ssh_public_keys
+  facility = "sjc1"
+  project_id = var.packet_project_id
+  asset_dir = file("./assets")
+  cluster_name = var.cluster_name
+  controller_type = var.controller_type
+  os_channel = "stable"
+  dns {
+    zone = var.dns_zone
+    provider = "route53"
+ }
+
+  controller_clc_snippets = [
+    file("./enable-bpf-jit-clc-snippet.yaml"),
+  ]
+
+  worker_pool "pool-1" {
+    node_type = var.worker_type
+    os_channel = "stable"
+    count = 1
+    clc_snippets = [
+      file("./enable-bpf-jit-clc-snippet.yaml"),
+    ]
+  }
+}
+

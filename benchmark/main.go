@@ -10,6 +10,7 @@ import (
 	"net"
 
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/bpf"
+	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/calico"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/ipset"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/iptables"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/ipnetsgenerator"
@@ -51,10 +52,10 @@ func main() {
 		seed = time.Now().UnixNano()
 	}
 
-	ipnetsReq := ipnetsgenerator.ParseIPNetsParam(countParam - 1, ipnetsParam)
+	ipnetsReq := ipnetsgenerator.ParseIPNetsParam(countParam-1, ipnetsParam)
 	nets := ipnetsgenerator.GenerateIPNets(ipnetsReq, seed)
 
-	_, pingIP, err := net.ParseCIDR(testIP+"/32")
+	_, pingIP, err := net.ParseCIDR(testIP + "/32")
 	if err != nil {
 		fmt.Printf("error parsing testIP: %s\n", err)
 		return
@@ -72,6 +73,8 @@ func main() {
 		filter = iptables.New()
 	case "ipset":
 		filter = ipset.New()
+	case "calico":
+		filter = calico.New(nets, iface)
 	default:
 		fmt.Printf("%q is not a valid filter type", filterType)
 		os.Exit(1)
@@ -108,6 +111,7 @@ func main() {
 
 		defer filter.CleanUp()
 	}
+
 	if os.Getenv("BENCHMARK_COMMAND") == "MEASURE_SETUP_TIME" {
 		fmt.Println(setupTime)
 	} else if os.Getenv("BENCHMARK_COMMAND") != "" {
