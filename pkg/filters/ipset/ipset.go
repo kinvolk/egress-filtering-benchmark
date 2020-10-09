@@ -11,7 +11,7 @@ import (
 const (
 	setName    = "myset"
 	setType    = "hash:net"
-	setSize    = 2000000
+	setSize    = 100000000
 	ruleFormat = "add %s %s\n"
 )
 
