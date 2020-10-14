@@ -31,8 +31,8 @@ const (
 	// would match for 6 entries which would confirm that the ipset/iptables rules
 	// have been updated by Calico and we can proceed with the test.
 	expectedNumberOfMatchesInIptables = 6
-	// Timeout
-	timeout = 600
+	// Timeout in milliseconds
+	timeout = 600000
 )
 
 type calicoCNI struct {
@@ -168,10 +168,9 @@ func waitUntilReady(ipsetListBefore map[string]bool, expectedNumberOfEntries int
 
 			output = strings.Trim(output, "\n")
 			if output == expectedOutput {
-
 				// Even if the entries are created in the hashset; Calico needs a little more
 				// time to update the iptables rules to match the hashset.
-				for j := 0; j <= 30; j++ {
+				for j := 0; j <= timeout; j++ {
 					run = fmt.Sprintf("iptables --list | grep '%s'", entry)
 					iptablesOutput, err := runCmd(run)
 					if err != nil {
@@ -183,14 +182,14 @@ func waitUntilReady(ipsetListBefore map[string]bool, expectedNumberOfEntries int
 						return true, nil
 					}
 
-					time.Sleep(1 * time.Second)
+					time.Sleep(1 * time.Millisecond)
 				}
 				return true, nil
 			}
 		}
 
-		// Wait for one second before checking again.
-		time.Sleep(1 * time.Second)
+		// Wait for one millisecond before checking again.
+		time.Sleep(1 * time.Millisecond)
 	}
 
 	return false, nil
