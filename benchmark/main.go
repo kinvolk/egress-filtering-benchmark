@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -9,7 +10,8 @@ import (
 
 	"net"
 
-	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/bpf"
+	tcbpf "github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/tc-bpf"
+	cgroupbpf "github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/cgroup-bpf"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/calico"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/ipset"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/iptables"
@@ -41,7 +43,7 @@ func init() {
 	flag.IntVar(&countParam, "count", 0, "Number of entries to generate")
 	flag.StringVar(&ipnetsParam, "ipnets", "", "List of ipnets and their weigth to generate (ex. 24:0.7,16:0.1)")
 	flag.Int64Var(&seed, "seed", 0, "Seed to use for the random generator")
-	flag.StringVar(&filterType, "filter", "", "Type of filter to use (bpf, iptables, ipset)")
+	flag.StringVar(&filterType, "filter", "", "Type of filter to use (tc-bpf, cgroup-bpf, iptables, ipset)")
 	flag.StringVar(&testIP, "test-ip", testIPDefault, "IP to perform a ping to test if filters were correctly applied")
 }
 
@@ -67,8 +69,10 @@ func main() {
 	switch filterType {
 	case "none":
 		filter = nil
-	case "bpf":
-		filter = bpf.New()
+	case "tc-bpf":
+		filter = tcbpf.New()
+	case "cgroup-bpf":
+		filter = cgroupbpf.New()
 	case "iptables":
 		filter = iptables.New()
 	case "ipset":
@@ -88,15 +92,12 @@ func main() {
 			fmt.Printf("%s\n", err)
 			return
 		}
-
-		var err error
-
-		// Check that the test ip is reachable before applying the filter
-		if err := checkPingSuccess(testIP); err != nil {
+		if err := checkDNSSuccess(testIP); err != nil {
 			fmt.Printf("%s\n", err)
 			return
 		}
 
+		var err error
 		setupTime, err = filter.SetUp(nets, iface)
 		if err != nil {
 			fmt.Printf("error setting up filter %s", err)
@@ -105,6 +106,10 @@ func main() {
 
 		// Check that the test ip is not reachable after applying the filter
 		if err := checkPingFail(testIP); err != nil {
+			fmt.Printf("%s\n", err)
+			return
+		}
+		if err := checkDNSFail(testIP); err != nil {
 			fmt.Printf("%s\n", err)
 			return
 		}
@@ -166,5 +171,36 @@ func checkPingFail(ip string) error {
 		return fmt.Errorf("ping to %q should have fail", ip)
 	}
 
+	return nil
+}
+
+func checkDNSSuccess(ip string) error {
+	r := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{
+				Timeout: time.Second * time.Duration(5),
+			}
+			return d.DialContext(ctx, "udp", ip+":53")
+		},
+	}
+	_, err := r.LookupHost(context.Background(), "www.google.com")
+	return err
+}
+
+func checkDNSFail(ip string) error {
+	r := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{
+				Timeout: time.Second * time.Duration(5),
+			}
+			return d.DialContext(ctx, "udp", ip+":53")
+		},
+	}
+	_, err := r.LookupHost(context.Background(), "www.google.com")
+	if err == nil {
+	   return fmt.Errorf("DNS request to %s:53 should have failed", ip)
+	}
 	return nil
 }

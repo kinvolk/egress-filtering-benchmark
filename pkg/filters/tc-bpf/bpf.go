@@ -1,4 +1,4 @@
-package bpf
+package tcbpf
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ type bpf struct {
 
 const (
 	mapPath     = "/sys/fs/bpf/tc/globals/lpm_filter"
-	bpfCodePath = "/tmp/bpf.o"
+	bpfCodePath = "/tmp/benchmark-tc-bpf.o"
 )
 
 func New() *bpf {
