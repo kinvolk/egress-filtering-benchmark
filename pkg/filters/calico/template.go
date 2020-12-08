@@ -6,6 +6,7 @@ kind: GlobalNetworkSet
 metadata:
   name: egress-filtering-benchmark-{{ .Index }}
   labels:
+    policytype: benchmark
     type: egress-deny-list
 {{- if .Nets }}
 spec:
@@ -21,6 +22,8 @@ apiVersion: crd.projectcalico.org/v1
 kind: GlobalNetworkPolicy
 metadata:
   name: 00-egress-filtering-benchmark
+  labels:
+    policytype: benchmark
 spec:
   selector: host-endpoint == 'ingress' && nodetype == 'worker'
   order: 0
@@ -48,6 +51,8 @@ apiVersion: crd.projectcalico.org/v1
 kind: GlobalNetworkPolicy
 metadata:
   name: 00-egress-filtering-benchmark-for-non-namespaced-resources
+  labels:
+    policytype: benchmark
 spec:
   selector: global()
   order: 0
