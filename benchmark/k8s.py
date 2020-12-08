@@ -45,6 +45,30 @@ subjects:
   name: benchmark-sa
   namespace: default
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  # "namespace" omitted since ClusterRoles are not namespaced
+  name: benchmark-cilium-resource-creator
+rules:
+- apiGroups: ["cilium.io"]
+  #resources: ["*"]
+  resources: ["ciliumclusterwidenetworkpolicies"]
+  verbs: ["get", "watch", "list", "create", "delete","update"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: benchmark-cilium-resource-creator
+roleRef:
+  kind: ClusterRole
+  name: benchmark-cilium-resource-creator
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: benchmark-sa
+  namespace: default
+---
 apiVersion: v1
 kind: Pod
 metadata:
@@ -58,7 +82,7 @@ spec:
     nodetype: worker-benchmark
   containers:
   - name: benchmark
-    image: quay.io/imran/benchmark:v0.20
+    image: quay.io/imran/benchmark:v0.21
     imagePullPolicy: Always
     securityContext:
       privileged: true
