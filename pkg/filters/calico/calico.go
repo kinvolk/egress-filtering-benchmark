@@ -148,7 +148,7 @@ func waitUntilReady(ipsetListBefore map[string]bool, expectedNumberOfEntries int
 		s := strconv.Itoa(expectedNumberOfEntries)
 		expectedOutput := fmt.Sprintf("Number of entries: %s", s)
 
-		for entry, _ := range ipsetListAfter {
+		for entry := range ipsetListAfter {
 			run := fmt.Sprintf("ipset list %s -terse | grep '^Number of entries'", entry)
 			output, err := runCmd(run)
 			if err != nil {
@@ -184,36 +184,39 @@ func waitUntilReady(ipsetListBefore map[string]bool, expectedNumberOfEntries int
 	return false, nil
 }
 
-func (b *calicoCNI) CleanUp() {
+func (b *calicoCNI) CleanUp() error {
 	gnpManifest, err := util.RenderTemplate(globalNetworkPolicyTmpl, b)
 	if err != nil {
-		fmt.Printf("rendering GlobalNetworkPolicy template: %w", err)
+		return fmt.Errorf("rendering GlobalNetworkPolicy template: %w", err)
 	}
 
 	gnpWorkloadsManifest, err := util.RenderTemplate(gnpTmplForWorkloads, b)
 	if err != nil {
-		fmt.Printf("rendering GlobalNetworkPolicy workloads template: %w", err)
+		return fmt.Errorf("rendering GlobalNetworkPolicy workloads template: %v", err)
 	}
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		fmt.Printf("creating cluster config: %w", err)
+		return fmt.Errorf("creating cluster config: %v", err)
 	}
 
 	for _, gnsManifest := range b.GlobalNetworkSetManifests {
 		// Decode and apply the GlobalNetworkSet manifest
 		if err := util.DecodeAndApply(config, gnsManifest, "DELETE"); err != nil {
-			fmt.Printf("deleting GlobalNetworkSets: %w", err)
+			return fmt.Errorf("deleting GlobalNetworkSets: %v", err)
 		}
 	}
 	// Decode and apply the GlobalNetworkPolicy manifest
 	if err := util.DecodeAndApply(config, gnpManifest, "DELETE"); err != nil {
-		fmt.Printf("deleting GlobalNetworkPolicy: %w", err)
+		return fmt.Errorf("deleting GlobalNetworkPolicy: %v", err)
 	}
+
 	// Decode and apply the GlobalNetworkPolicy manifest
 	if err := util.DecodeAndApply(config, gnpWorkloadsManifest, "DELETE"); err != nil {
-		fmt.Printf("deleting GlobalNetworkPolicy: %w", err)
+		return fmt.Errorf("deleting GlobalNetworkPolicy: %v", err)
 	}
+
+	return nil
 }
 
 func runCmd(run string) (string, error) {

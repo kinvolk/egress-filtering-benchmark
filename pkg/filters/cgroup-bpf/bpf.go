@@ -82,18 +82,28 @@ func (b *bpf) SetUp(nets []net.IPNet, iface string) (int64, error) {
 }
 
 // CleanUp removes the filter
-func (b *bpf) CleanUp() {
+func (b *bpf) CleanUp() error {
+	var err error
+	var cgroup *os.File
+
 	if b.prog != nil {
-		cgroup, err := os.Open(rootCgroup)
+		cgroup, err = os.Open(rootCgroup)
 		if err != nil {
-			return
+			return err
 		}
-		defer cgroup.Close()
+
+		defer func() {
+			cerr := cgroup.Close()
+			if cerr != nil {
+				err = cerr
+			}
+		}()
 
 		b.prog.Detach(int(cgroup.Fd()), ebpf.AttachCGroupInetEgress, 0)
 	}
-}
 
+	return err
+}
 
 func updateMap(maps map[string]*ebpf.Map, nets []net.IPNet) error {
 	filterMap, ok := maps[mapName]

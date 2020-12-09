@@ -91,7 +91,7 @@ func execIpSet(cmds []byte) error {
 	return nil
 }
 
-func (b *ipsetFilter) CleanUp() {
+func (b *ipsetFilter) CleanUp() error {
 	var buf bytes.Buffer
 	// remove iptable associated to it
 	execIpTables("-D", "OUTPUT", "-o", b.iface, "-m", "set", "--match-set",
@@ -100,5 +100,5 @@ func (b *ipsetFilter) CleanUp() {
 	fmt.Fprintf(&buf, "destroy %s\n", setName)
 	fmt.Fprintln(&buf, "quit")
 
-	execIpSet(buf.Bytes())
+	return execIpSet(buf.Bytes())
 }

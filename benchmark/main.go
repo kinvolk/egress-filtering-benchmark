@@ -29,7 +29,7 @@ var (
 
 type filter interface {
 	SetUp(nets []net.IPNet, iface string) (int64, error)
-	CleanUp()
+	CleanUp() error
 }
 
 func init() {
@@ -115,7 +115,12 @@ func main() {
 			}
 		}
 
-		defer filter.CleanUp()
+		defer func() {
+			if ferr := filter.CleanUp(); ferr != nil {
+				fmt.Printf("%v\n", ferr)
+				return
+			}
+		}()
 	}
 
 	if os.Getenv("BENCHMARK_COMMAND") == "MEASURE_SETUP_TIME" {

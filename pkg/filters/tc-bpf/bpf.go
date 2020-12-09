@@ -65,17 +65,24 @@ func (b *bpf) SetUp(nets []net.IPNet, iface string) (int64, error) {
 }
 
 // CleanUp removes the filter
-func (b *bpf) CleanUp() {
+func (b *bpf) CleanUp() error {
 	cmd1 := exec.Command("tc", "filter", "del", "dev", b.iface, "egress")
-	cmd1.Run()
+	if err := cmd1.Run(); err != nil {
+		return fmt.Errorf("cleanup %s: %v", cmd1.String(), err)
+	}
 
 	cmd2 := exec.Command("tc", "qdisc", "del", "dev", b.iface, "clsact")
-	cmd2.Run()
+	if err := cmd2.Run(); err != nil {
+		return fmt.Errorf("cleanup %s: %v", cmd2.String(), err)
+	}
 
 	cmd3 := exec.Command("rm", mapPath)
-	cmd3.Run()
-}
+	if err := cmd3.Run(); err != nil {
+		return fmt.Errorf("cleanup %s: %v", cmd3.String(), err)
+	}
 
+	return nil
+}
 func updateMap(nets []net.IPNet) error {
 	filterMap, err := ebpf.LoadPinnedMap(mapPath)
 	if err != nil {
