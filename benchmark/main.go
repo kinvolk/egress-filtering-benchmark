@@ -3,14 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"time"
 
-	"net"
-
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/calico"
 	cgroupbpf "github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/cgroup-bpf"
+	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/cilium"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/ipset"
 	"github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/iptables"
 	tcbpf "github.com/kinvolk/k8s-egress-filtering-benchmark/pkg/filters/tc-bpf"
@@ -73,6 +73,8 @@ func main() {
 		filter = ipset.New()
 	case "calico":
 		filter = calico.New(nets, iface)
+	case "cilium":
+		filter = cilium.New(nets, iface, testIP)
 	default:
 		fmt.Printf("%q is not a valid filter type", filterType)
 		os.Exit(1)
