@@ -47,7 +47,7 @@ def get_plotable_tables(data):
             err[filter_index][rules_index] = t_err = np.std(values, ddof=1)/np.sqrt(len(values))
     return (avg, err)
 
-bar_color = ("#09BAC8", "#FFF200", "#F72E5C", "#17B838")
+bar_color = ("#09BAC8", "#FFF200", "#F72E5C", "#17B838","#F6830F","#892CDC")
 ecolor = ""
 grid_color = "#B0B0B0"
 axis_heading = "#585858"
