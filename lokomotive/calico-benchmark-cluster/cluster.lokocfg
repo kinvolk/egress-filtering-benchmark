@@ -19,7 +19,7 @@ cluster "packet" {
   asset_dir = file("./assets")
   cluster_name = var.cluster_name
   controller_type = var.controller_type
-  os_channel = "stable"
+  os_channel = "alpha"
   dns {
     zone = var.dns_zone
     provider = "route53"
@@ -31,7 +31,7 @@ cluster "packet" {
 
   worker_pool "pool-1" {
     node_type = var.worker_type
-    os_channel = "stable"
+    os_channel = "alpha"
     count = 1
     clc_snippets = [
       file("./enable-bpf-jit-clc-snippet.yaml"),

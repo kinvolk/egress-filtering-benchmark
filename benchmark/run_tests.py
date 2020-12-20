@@ -29,48 +29,52 @@ parser.add_argument("--username")
 parser.add_argument("--client")
 parser.add_argument("--server")
 parser.add_argument("--mode")
+parser.add_argument("--kubeconfig-calico-cluster")
+parser.add_argument("--kubeconfig-cilium-cluster")
 args = parser.parse_args()
 
-def get_pod(pod_name):
-   cmd = "kubectl get pod -n default {} -o jsonpath='{{.metadata.name}}'".format(pod_name)
+def get_pod(kubeconfig, pod_name):
+   cmd = "kubectl --kubeconfig {} get pod -n default {} -o jsonpath='{{.metadata.name}}'".format(kubeconfig,pod_name)
    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
    return result.stdout.decode("utf-8")
 
 
-def delete_benchmark_pod(pod_name):
-    exists = get_pod(pod_name)
+def delete_benchmark_pod(kubeconfig, pod_name):
+    exists = get_pod(kubeconfig, pod_name)
     if exists == "":
         return None
 
-    cmd = "kubectl delete pod -n default {}".format(pod_name)
+    cmd = "kubectl --kubeconfig {} delete pod -n default {}".format(kubeconfig, pod_name)
     result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True)
     return result.stdout.decode("utf-8")
 
-def pod_status(pod_name):
-    cmd = "kubectl get pod {} -o jsonpath='{{.status.phase}}'".format(pod_name)
+def pod_status(kubeconfig, pod_name):
+    cmd = "kubectl --kubeconfig {} get pod {} -o jsonpath='{{.status.phase}}'".format(kubeconfig, pod_name)
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
     return result.stdout.decode("utf-8")
 
-def get_output(pod_name):
-    phase = pod_status(pod_name)
+def get_output(kubeconfig, pod_name):
+    phase = pod_status(kubeconfig, pod_name)
     for x in range(1,100):
         if phase != "Succeeded":
             time.sleep(3)
-            phase = pod_status(pod_name)
+            phase = pod_status(kubeconfig, pod_name)
 
         if phase == "Succeeded":
-            cmd = "kubectl logs -n default {}".format(pod_name)
+            cmd = "kubectl --kubeconfig {} logs -n default {}".format(kubeconfig, pod_name)
             result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True)
             return result.stdout.decode("utf-8")
 
     return None
 
-def run_on_k8s(filter,nrules,cmd):
+def run_on_k8s(kubeconfig, filter,nrules,cmd):
+    # Delete existing benchmark pod.
+    delete_benchmark_pod(kubeconfig, "egress-benchmark")
     benchmark_cmd = Template(benchmark_pod_tmpl).substitute(count=nrules, iface=iface, seed=seed, ipnets=ipnets, filter=filter,cmd=cmd)
     cmd = '''
-kubectl apply -f - << EOF
+kubectl --kubeconfig {} apply -f - << EOF
 {}
-EOF'''.format(benchmark_cmd)
+EOF'''.format(kubeconfig, benchmark_cmd)
 
     result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True)
     return result.stdout.decode("utf-8")
@@ -83,18 +87,26 @@ def run_test(filter, nrules, cmd):
     return run_in_client(cmd)
 
 iperf_cmd_format_for_k8s = "iperf3 -c {server} {mode_flags} -O 2 -t 10 -A 2 -J"
-iperf_cmd_format = "docker run --name iperfclient --net=host networkstatic/iperf3 -c {server} {mode_flags} -O 2 -t 10 -A 2 -J"
+iperf_cmd_format = "docker run --ulimit nofile=90000:90000 --name iperfclient --net=host networkstatic/iperf3 -c {server} {mode_flags} -O 2 -t 10 -A 2 -J"
 def run_iperf_test(filter, nrules, mode):
     flags = ""
     if mode == "udp":
         flags = "-u -l 1470 -b {}".format(bandwidth)
 
-    if filter == "calico" or filter == "cilium":
+    if filter == "calico":
         iperf_cmd = iperf_cmd_format_for_k8s.format(server=args.server, mode_flags=flags)
-        out = run_on_k8s(filter, nrules, iperf_cmd)
+        out = run_on_k8s(args.kubeconfig_calico_cluster, filter, nrules, iperf_cmd)
         if not out:
             return None
-        out = get_output("egress-benchmark")
+        out = get_output(args.kubeconfig_calico_cluster, "egress-benchmark")
+        if not out:
+            return None
+    elif filter == "cilium":
+        iperf_cmd = iperf_cmd_format_for_k8s.format(server=args.server, mode_flags=flags)
+        out = run_on_k8s(args.kubeconfig_cilium_cluster, filter, nrules, iperf_cmd)
+        if not out:
+            return None
+        out = get_output(args.kubeconfig_cilium_cluster, "egress-benchmark")
         if not out:
             return None
     else:
@@ -123,11 +135,18 @@ ping_cmd_format = "ping -i {interval} -c {count} {dest}"
 def run_ping_test(filter, nrules, mode):
     cmd = ping_cmd_format.format(interval=ping_interval, count=ping_count, dest=args.server)
 
-    if filter == "calico" or filter == "cilium":
-        result = run_on_k8s(filter, nrules, cmd)
+    if filter == "calico":
+        result = run_on_k8s(args.kubeconfig_calico_cluster, filter, nrules, cmd)
         if not result:
             return None
-        result = get_output("egress-benchmark")
+        result = get_output(args.kubeconfig_calico_cluster, "egress-benchmark")
+        if not result:
+            return None
+    elif filter == "cilium":
+        result = run_on_k8s(args.kubeconfig_cilium_cluster, filter, nrules, cmd)
+        if not result:
+            return None
+        result = get_output(args.kubeconfig_cilium_cluster, "egress-benchmark")
         if not result:
             return None
     else:
@@ -176,7 +195,7 @@ data_cpu = {}
 data_ping = {}
 data_setup = {}
 
-copy_benchmark_to_client()
+#copy_benchmark_to_client()
 start_iperf_server()
 
 print("%\tfilter\tnrules\titeration\tthroughput\tcpu\tping\t")
@@ -201,25 +220,28 @@ for (filter_index, filter) in enumerate(filters):
             percentage = 100.0*float(number_of_tests_executed)/number_of_tests
             print("{:1.0f}\t{}\t{}\t{}\t".format(percentage, filter, n, i), end="")
 
-            if filter == "calico" or filter == "cilium":
-                delete_benchmark_pod("egress-benchmark")
+           # if filter == "calico" or filter == "cilium":
+           #     delete_benchmark_pod("egress-benchmark")
             out = run_iperf_test(filter, n, args.mode)
             if not out:
                 print("Testing iperf for {}:{}:{} failed".format(filter, n, i))
                 continue
 
-            if filter == "calico" or filter == "cilium":
-                delete_benchmark_pod("egress-benchmark")
+           # if filter == "calico" or filter == "cilium":
+           #     delete_benchmark_pod("egress-benchmark")
             out_ping = run_ping_test(filter, n, args.mode)
             if not out_ping:
                 print("Testing ping for {}:{}:{} failed".format(filter, n, i))
                 continue
             out_ping = 1000*out_ping
 
-            if filter == "calico" or filter == "cilium":
-                delete_benchmark_pod("egress-benchmark")
-                setup = run_on_k8s(filter, n, "MEASURE_SETUP_TIME")
-                setup = get_output("egress-benchmark")
+            if filter == "calico":
+                #delete_benchmark_pod("egress-benchmark")
+                setup = run_on_k8s(args.kubeconfig_calico_cluster, filter, n, "MEASURE_SETUP_TIME")
+                setup = get_output(args.kubeconfig_calico_cluster, "egress-benchmark")
+            elif filter == "cilium":
+                setup = run_on_k8s(args.kubeconfig_cilium_cluster, filter, n, "MEASURE_SETUP_TIME")
+                setup = get_output(args.kubeconfig_cilium_cluster, "egress-benchmark")
             else:
                 setup = run_test(filter, n, "MEASURE_SETUP_TIME")
             if not setup:

@@ -1,0 +1,7 @@
+storage:
+  files:
+    - path: /etc/sysctl.d/bpf_jit_enable.conf
+      filesystem: root
+      contents:
+        inline: net.core.bpf_jit_enable=1
+      mode: 0644

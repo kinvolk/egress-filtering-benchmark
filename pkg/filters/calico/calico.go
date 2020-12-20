@@ -16,23 +16,12 @@ import (
 )
 
 const (
-
-	// This number is restricted by the number of entries that can be present in an ipset
-	// While that number could be `1048576`, the actual number is far less because of the
-	// maximum size that can be POST'ed to the Kubernetes API server before getting error
-	// `etcdserver: Request entity too large`.
-	// This number can certainly be improved upon which would result in lesser number of
-	// GlobalNetworkSet batch thereby resulting in quicker turnaround time of applying the
-	// manifests. However the expected improvement is small.
-	rulesPerManifest = 50000
 	// This number is based on the fact that there are two GlobalNetworkPolicies
 	// that are created for calico. Each policy is specified for three protocols
 	// TCP , UDP and ICMP. Hence it is expected that `iptables --list | grep <ipset name>`
 	// would match for 6 entries which would confirm that the ipset/iptables rules
 	// have been updated by Calico and we can proceed with the test.
 	expectedNumberOfMatchesInIptables = 6
-	// Timeout in milliseconds
-	timeout = 600000
 )
 
 type calicoCNI struct {
@@ -67,19 +56,19 @@ func (b *calicoCNI) SetUp(nets []net.IPNet, iface string) (int64, error) {
 	gnsManifests := map[int][]string{}
 
 	// This code splits the GlobalNetworkSet manifests to accomodate a
-	// maximum if `rulesPerManifest` entries per manifest.
+	// maximum if `util.RulesPerManifest` entries per manifest.
 	current := 0
-	maxManifests := (len(b.Nets) / rulesPerManifest) + 1
+	maxManifests := (len(b.Nets) / util.RulesPerManifest) + 1
 
 	for i := 0; i < maxManifests; i++ {
 		remaining := len(b.Nets) - current
-		if remaining >= rulesPerManifest {
-			gnsManifests[i] = b.Nets[current : current+rulesPerManifest]
+		if remaining >= util.RulesPerManifest {
+			gnsManifests[i] = b.Nets[current : current+util.RulesPerManifest]
 		} else {
 			gnsManifests[i] = b.Nets[current : current+remaining]
 		}
 
-		current = current + rulesPerManifest
+		current = current + util.RulesPerManifest
 
 		m := struct {
 			Index int
@@ -144,7 +133,7 @@ func (b *calicoCNI) SetUp(nets []net.IPNet, iface string) (int64, error) {
 }
 
 func waitUntilReady(ipsetListBefore map[string]bool, expectedNumberOfEntries int) (bool, error) {
-	for i := 0; i <= timeout; i++ {
+	for i := 0; i <= util.Timeout; i++ {
 		ipsetListAfter, err := listIpsets()
 		if err != nil {
 			return false, fmt.Errorf("listing existing ipsets: %w", err)
@@ -159,7 +148,7 @@ func waitUntilReady(ipsetListBefore map[string]bool, expectedNumberOfEntries int
 		s := strconv.Itoa(expectedNumberOfEntries)
 		expectedOutput := fmt.Sprintf("Number of entries: %s", s)
 
-		for entry, _ := range ipsetListAfter {
+		for entry := range ipsetListAfter {
 			run := fmt.Sprintf("ipset list %s -terse | grep '^Number of entries'", entry)
 			output, err := runCmd(run)
 			if err != nil {
@@ -170,7 +159,7 @@ func waitUntilReady(ipsetListBefore map[string]bool, expectedNumberOfEntries int
 			if output == expectedOutput {
 				// Even if the entries are created in the hashset; Calico needs a little more
 				// time to update the iptables rules to match the hashset.
-				for j := 0; j <= timeout; j++ {
+				for j := 0; j <= util.Timeout; j++ {
 					run = fmt.Sprintf("iptables --list | grep '%s'", entry)
 					iptablesOutput, err := runCmd(run)
 					if err != nil {
@@ -195,36 +184,39 @@ func waitUntilReady(ipsetListBefore map[string]bool, expectedNumberOfEntries int
 	return false, nil
 }
 
-func (b *calicoCNI) CleanUp() {
+func (b *calicoCNI) CleanUp() error {
 	gnpManifest, err := util.RenderTemplate(globalNetworkPolicyTmpl, b)
 	if err != nil {
-		fmt.Printf("rendering GlobalNetworkPolicy template: %w", err)
+		return fmt.Errorf("rendering GlobalNetworkPolicy template: %w", err)
 	}
 
 	gnpWorkloadsManifest, err := util.RenderTemplate(gnpTmplForWorkloads, b)
 	if err != nil {
-		fmt.Printf("rendering GlobalNetworkPolicy workloads template: %w", err)
+		return fmt.Errorf("rendering GlobalNetworkPolicy workloads template: %v", err)
 	}
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		fmt.Printf("creating cluster config: %w", err)
+		return fmt.Errorf("creating cluster config: %v", err)
 	}
 
 	for _, gnsManifest := range b.GlobalNetworkSetManifests {
 		// Decode and apply the GlobalNetworkSet manifest
 		if err := util.DecodeAndApply(config, gnsManifest, "DELETE"); err != nil {
-			fmt.Printf("deleting GlobalNetworkSets: %w", err)
+			return fmt.Errorf("deleting GlobalNetworkSets: %v", err)
 		}
 	}
 	// Decode and apply the GlobalNetworkPolicy manifest
 	if err := util.DecodeAndApply(config, gnpManifest, "DELETE"); err != nil {
-		fmt.Printf("deleting GlobalNetworkPolicy: %w", err)
+		return fmt.Errorf("deleting GlobalNetworkPolicy: %v", err)
 	}
+
 	// Decode and apply the GlobalNetworkPolicy manifest
 	if err := util.DecodeAndApply(config, gnpWorkloadsManifest, "DELETE"); err != nil {
-		fmt.Printf("deleting GlobalNetworkPolicy: %w", err)
+		return fmt.Errorf("deleting GlobalNetworkPolicy: %v", err)
 	}
+
+	return nil
 }
 
 func runCmd(run string) (string, error) {

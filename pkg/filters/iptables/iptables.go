@@ -58,12 +58,13 @@ func (f *iptablesFilter) SetUp(nets []net.IPNet, iface string) (int64, error) {
 }
 
 // CleanUp removes the filter
-func (f *iptablesFilter) CleanUp() {
+func (f *iptablesFilter) CleanUp() error {
 	rules, err := ioutil.ReadFile(rulesPath)
 	if err != nil {
-		return
+		return fmt.Errorf("iptables cleanup: %v", err)
 	}
-	iptablesRestore(rules, false)
+
+	return iptablesRestore(rules, false)
 }
 
 func iptablesRestore(rules []byte, noflush bool) error {
